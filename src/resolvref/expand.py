@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import collections
-import functools
+import contextlib
+from collections import OrderedDict
 
 from resolvref.exceptions import RecursiveExpansionForbiddenError
 
@@ -10,53 +10,67 @@ def _is_ref(item):
     return isinstance(item, dict) and "$ref" in item
 
 
-def _ref_is_internal(item):
-    return item["$ref"].startswith("#/")
+def _is_internal_ref(refpath):
+    return refpath.startswith("#/")
 
 
 class Resolver:
-    def __init__(self, document, cachefunc=None, allow_recursive=True):
-        if cachefunc is None:
-            cachefunc = functools.lru_cache(1024)
-
+    def __init__(self, document, allow_recursive=True):
         self.document = document
         self.allow_recursive = allow_recursive
-        self._recursion_detector = set()
-        self._cached_read_internal_ref = cachefunc(self._read_internal_refpath)
+        # cache which maps known refs to parts of the document
+        self._cache = {}
+        self._refpaths = ["#"]
 
-    def _check_recursive(self, data):
-        if self.allow_recursive:
-            return True
-        else:
-            dataid = id(data)
-            if dataid in self._recursion_detector:
-                raise RecursiveExpansionForbiddenError(
-                    "recursion detected with allow_recursive=False"
-                )
-            else:
-                self._recursion_detector.add(dataid)
+    @property
+    def current_path(self):
+        return self._refpaths[-1]
 
-    def _read_internal_refpath(self, refpath):
-        refpath = refpath.split("/")[1:]
-        cur = self.document
-        for step in refpath:
-            cur = cur[step]
-        self._check_recursive(cur)
-        return self._resolve_references(cur)
+    @contextlib.contextmanager
+    def _pathctx(self, refpath):
+        if not _is_internal_ref(refpath):
+            refpath = "/".join((self.current_path, refpath))
 
-    def _resolve_references(self, data):
-        if _is_ref(data):
-            if _ref_is_internal(data):
-                return self._cached_read_internal_ref(data["$ref"])
+        if refpath in self._refpaths and not self.allow_recursive:
+            raise RecursiveExpansionForbiddenError(
+                "recursion detected with allow_recursive=False"
+            )
+
+        self._refpaths.append(refpath)
+        yield
+        self._refpaths.pop()
+
+    def _resolve_refpath(self, refpath):
+        if refpath in self._cache:
+            return self._cache[refpath]
+
+        with self._pathctx(refpath):
+            if _is_internal_ref(self.current_path):
+                cur = self.document
             else:
                 raise NotImplementedError("External references not yet supported.")
 
+            for step in self.current_path.split("/")[1:]:
+                cur = cur[step]
+
+            self._cache[self.current_path] = cur
+            return self._resolve_references(cur)
+
+    def _namespaced_resolution(self, namespace, data):
+        with self._pathctx(namespace):
+            return self._resolve_references(data)
+
+    def _resolve_references(self, data):
+        if _is_ref(data):
+            return self._resolve_refpath(data["$ref"])
+
         if isinstance(data, dict):
-            return collections.OrderedDict(
-                [(k, self._resolve_references(v)) for (k, v) in data.items()]
+            constructor = OrderedDict if isinstance(data, OrderedDict) else dict
+            return constructor(
+                [(k, self._namespaced_resolution(k, v)) for (k, v) in data.items()]
             )
         elif isinstance(data, list):
-            return [self._resolve_references(v) for v in data]
+            return [self._namespaced_resolution(str(i), v) for i, v in enumerate(data)]
         else:
             return data
 
@@ -64,6 +78,6 @@ class Resolver:
         return self._resolve_references(self.document)
 
 
-def resolve_references(data, resolver=None, allow_recursive=True):
+def resolve_references(data, allow_recursive=True):
     resolver = Resolver(data, allow_recursive=allow_recursive)
     return resolver.resolve_references()
