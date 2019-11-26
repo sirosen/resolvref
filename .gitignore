@@ -6,6 +6,7 @@
 
 /dist
 
+/build
 *.egg-info
 *.pyc
 __gitignore__

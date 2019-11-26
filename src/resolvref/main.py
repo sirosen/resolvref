@@ -7,6 +7,7 @@ Preserves order
 import argparse
 import sys
 
+from resolvref.exceptions import RecursiveExpansionForbiddenError
 from resolvref.expand import resolve_references
 from resolvref.formats import load_json, load_yaml, write_json, write_yaml
 
@@ -49,7 +50,7 @@ def _detect_file_format(args):
     return fileformat
 
 
-def main(argv=sys.argv[1:]):
+def _parse_args(argv):
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -68,9 +69,19 @@ def main(argv=sys.argv[1:]):
         default=None,
         help="File format, defaults to guessing by extension (and falling back to json)",
     )
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def main(argv=sys.argv[1:]):
+    args = _parse_args(argv)
     fileformat = _detect_file_format(args)
-    newdata = resolve_references(_load_doc(args.INPUT_FILE, fileformat))
+    try:
+        newdata = resolve_references(
+            _load_doc(args.INPUT_FILE, fileformat), allow_recursive=False
+        )
+    except RecursiveExpansionForbiddenError as e:
+        print("error processing {}: {}".format(args.INPUT_FILE, e), file=sys.stderr)
+        sys.exit(1)
     _write_doc(newdata, args.output, fileformat)
 
 

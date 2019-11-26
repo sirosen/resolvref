@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import yaml
 
 from resolvref.main import main
@@ -72,3 +73,22 @@ def test_simple_file_expansion_json_loaded_as_yaml(simple_json_filename, tmpdir)
             }
         },
     }
+
+
+def test_recursive_file_expansion_json(capsys, recursive_json_filename, tmpdir):
+    """
+    Test resolution on recursive refs
+
+    Based on the JSONSchema spec, refs *can* be recursive:
+      https://json-schema.org/understanding-json-schema/structuring.html#recursion
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        main([recursive_json_filename])
+    expected_error_message = (
+        "error processing {}: "
+        "recursion detected with allow_recursive=False\n".format(
+            recursive_json_filename
+        )
+    )
+    assert excinfo.value.code == 1
+    assert capsys.readouterr().err == expected_error_message
