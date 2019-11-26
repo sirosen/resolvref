@@ -2,7 +2,6 @@ import json
 
 import pytest
 import yaml
-
 from resolvref.main import main
 
 
