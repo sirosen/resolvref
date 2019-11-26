@@ -20,8 +20,9 @@ setup(
     author="Stpehen Rosen",
     author_email="sirosen@uchicago.edu",
     url="https://github.com/sirosen/resolvref",
-    packages=find_packages("src", exclude=["tests", "tests.*"]),
+    packages=find_packages("src"),
     package_dir={"": "src"},
+    install_requires=[],
     extras_require={
         "yaml": ["pyyaml>=5,<6"],
         "development": [
@@ -35,7 +36,6 @@ setup(
             'mock==2.0.0;python_version<"3.6"',
         ],
     },
-    include_package_data=True,
     keywords=[],
     classifiers=[
         "Development Status :: 3 - Alpha",
