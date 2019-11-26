@@ -1,0 +1,9 @@
+/.tox
+/.coverage
+
+/venv
+
+*.egg-info
+*.pyc
+__gitignore__
+.mypy_cache

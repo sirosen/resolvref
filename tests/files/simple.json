@@ -1,0 +1,22 @@
+{
+  "part1": {
+    "$ref": "#/part2/otherdoc"
+  },
+  "part2": {
+    "otherdoc": {
+      "k1": "a string",
+      "k2": 1,
+      "k3": [
+        "a list",
+        "of strings"
+      ],
+      "k4": {
+        "k5": {
+          "k6": {
+            "k7": "a deeply nested object"
+          }
+        }
+      }
+    }
+  }
+}
